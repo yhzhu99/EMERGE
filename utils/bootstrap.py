@@ -48,8 +48,8 @@ def export_metrics(bootstrapped_samples):
         metrics[k] = {"mean": np.mean(v), "std": np.std(v)}
     return metrics
 
-def run_bootstrap(preds_outcome, preds_readmission, labels_outcome, labels_readmission):
-    bootstrap_samples = bootstrap(preds_outcome, preds_readmission, labels_outcome, labels_readmission)
+def run_bootstrap(preds_outcome, preds_readmission, labels_outcome, labels_readmission, seed=42):
+    bootstrap_samples = bootstrap(preds_outcome, preds_readmission, labels_outcome, labels_readmission, seed=seed)
     metrics = export_metrics(bootstrap_samples)
     return metrics
 
