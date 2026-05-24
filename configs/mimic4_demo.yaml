@@ -1,0 +1,34 @@
+seed: 42
+dataset:
+  raw_dir: data/raw/mimic-iv-demo-2.2
+  output_dir: datasets/mimic4_demo
+  notes_file: null
+  prediction_window_hours: 48
+  bucket_hours: 12
+  val_fraction: 0.1
+  test_fraction: 0.2
+  include_missing_masks: true
+rag:
+  kg_dir: data/kg/primekg
+  abnormal_zscore: 2.0
+  kg_similarity_threshold: 0.35
+  max_note_entities: 12
+  max_kg_nodes: 10
+  max_triples_per_node: 5
+  vectorizer_max_features: 20000
+text:
+  backend: tfidf_svd
+  embedding_dim: 768
+  max_features: 30000
+train:
+  hidden_dim: 128
+  learning_rate: 0.001
+  batch_size: 256
+  max_epochs: 100
+  patience: 10
+  focus_task: outcome
+  ehr_net: gru
+  text_fusion: concat
+  modality_fusion: ours
+  use_modality: ehr_note_summary
+  dropout: 0.25
