@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from config import ExperimentConfig
 
 
-def convert_mimic4_demo(cfg: "ExperimentConfig") -> Path:
+def convert_mimic4_demo(cfg: ExperimentConfig) -> Path:
     converter = MIMIC4OneEHRConverter(
         cfg.data.raw_dir,
         notes_file=cfg.data.notes_file,

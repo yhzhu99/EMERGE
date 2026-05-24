@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 DYNAMIC_COLUMNS = ["patient_id", "event_time", "code", "value"]
 STATIC_REQUIRED_COLUMNS = ["patient_id"]
 LABEL_COLUMNS = ["patient_id", "label_time", "label_code", "label_value"]

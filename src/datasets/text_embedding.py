@@ -25,7 +25,7 @@ class TfidfSvdEncoder:
         self.svd: TruncatedSVD | None = None
         self.actual_dim = 0
 
-    def fit(self, texts: list[str]) -> "TfidfSvdEncoder":
+    def fit(self, texts: list[str]) -> TfidfSvdEncoder:
         clean_texts = _ensure_nonempty_texts(texts)
         matrix = self.vectorizer.fit_transform(clean_texts)
         max_components = min(self.embedding_dim, max(1, matrix.shape[0] - 1), max(1, matrix.shape[1] - 1))
