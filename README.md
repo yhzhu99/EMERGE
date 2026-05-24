@@ -68,6 +68,44 @@ runs/mimic4_demo_mortality/                 # checkpoints, metrics, predictions
 
 By default, the PrimeKG download is lightweight and includes `README.txt` and `disease_features.tab`, matching the current Dataverse filenames. Use `--primekg-full` to download all PrimeKG files listed in the original README, including `nodes.tab`, `edges.csv`, `kg.csv`, `drug_features.tab`, and grouped/intermediate KG files.
 
+## Data Preparation
+
+EMERGE separates reusable EHR conversion from model-specific preprocessing.
+
+1. Download raw resources:
+
+```bash
+python src/main.py --stage download --config configs/mimic4_demo.toml
+```
+
+This writes the public MIMIC-IV demo to `data/raw/mimic-iv-demo/2.2/` and lightweight PrimeKG files to `data/kg/primekg/`.
+
+2. Convert raw MIMIC-IV tables to the OneEHR three-table format:
+
+```bash
+python src/main.py --stage convert --config configs/mimic4_demo.toml
+```
+
+This writes:
+
+```text
+data/tables/mimic-iv-demo/mortality/dynamic.csv
+data/tables/mimic-iv-demo/mortality/static.csv
+data/tables/mimic-iv-demo/mortality/label.csv
+```
+
+`cohort.csv` and `notes.csv` are also written as auxiliary files for EMERGE. The MIMIC-IV demo does not include real clinical notes, so `notes.csv` is built from diagnosis/procedure descriptions as a demo surrogate. For full MIMIC-IV-Note or other clinical notes, provide a CSV path in `notes_file` inside the TOML config; it should contain a patient/admission identifier column and a text column.
+
+3. Build EMERGE artifacts from the OneEHR tables:
+
+```bash
+python src/main.py --stage preprocess --config configs/mimic4_demo.toml
+```
+
+This writes `data/processed/mimic-iv-demo/mortality/emerge_dataset.npz`, `metadata.json`, `split.json`, and `rag_records.csv`. Training only reads these processed artifacts.
+
+For full benchmark experiments, prepare the same three OneEHR files under a new `data/tables/<dataset>/<task>/` directory and point `table_dir`, `processed_dir`, and `kg_dir` in a TOML config to the corresponding paths.
+
 ## Experiment Scope
 
 The default config uses the public MIMIC-IV demo. It validates the full data, RAG, and training pipeline, but it is too small for the paper's benchmark numbers. For the reported tables, use the full MIMIC-III and MIMIC-IV benchmark cohorts with the paper's preprocessing, 70/10/20 split, and reported hyperparameters.
