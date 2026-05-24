@@ -22,6 +22,9 @@ retriever_backend = "sentence_transformer"
 retriever_model_name = "BAAI/bge-m3"
 retriever_batch_size = 64
 retriever_device = "auto"
+cache_dir = "data/cache/primekg"
+use_cache = true
+rebuild_cache = false
 
 [text]
 embedding_backend = "transformer_cls"

@@ -34,3 +34,30 @@ def test_primekg_loads_official_triples(tmp_path: Path) -> None:
         "(sepsis, associated with, inflammation)"
     ]
     assert "inflammation" not in retriever.triples_by_name
+
+
+def test_primekg_writes_retrieval_cache(tmp_path: Path) -> None:
+    kg_dir = tmp_path / "kg"
+    cache_dir = tmp_path / "cache"
+    kg_dir.mkdir()
+    (kg_dir / "disease_features.tab").write_text(
+        "node_index\tmondo_name\tmondo_definition\n1\tsepsis\tlife-threatening infection\n",
+        encoding="utf-8",
+    )
+    (kg_dir / "kg.csv").write_text(
+        "x_name,display_relation,y_name,x_type,y_type\n"
+        "sepsis,associated with,inflammation,disease,effect/phenotype\n",
+        encoding="utf-8",
+    )
+
+    KnowledgeRetriever.from_primekg(
+        kg_dir,
+        require_triples=True,
+        cache_dir=cache_dir,
+        use_cache=True,
+    )
+
+    cache_entries = list(cache_dir.iterdir())
+    assert len(cache_entries) == 1
+    assert (cache_entries[0] / "metadata.json").exists()
+    assert (cache_entries[0] / "triples.json").exists()

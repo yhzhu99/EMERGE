@@ -32,6 +32,9 @@ class RAGConfig:
     retriever_model_name: str = "BAAI/bge-m3"
     retriever_batch_size: int = 64
     retriever_device: str = "auto"
+    cache_dir: Path = Path("data/cache/primekg")
+    use_cache: bool = True
+    rebuild_cache: bool = False
 
 
 @dataclass(frozen=True)
@@ -165,6 +168,9 @@ def load_config(path: str | Path) -> ExperimentConfig:
             rag_raw.get("retriever_batch_size", rag_default.retriever_batch_size)
         ),
         retriever_device=str(rag_raw.get("retriever_device", rag_default.retriever_device)),
+        cache_dir=_as_path(rag_raw.get("cache_dir"), rag_default.cache_dir),
+        use_cache=bool(rag_raw.get("use_cache", rag_default.use_cache)),
+        rebuild_cache=bool(rag_raw.get("rebuild_cache", rag_default.rebuild_cache)),
     )
     text = TextConfig(
         embedding_backend=str(text_raw.get("embedding_backend", text_default.embedding_backend)),

@@ -79,6 +79,9 @@ def preprocess_emerge_dataset(cfg: ExperimentConfig) -> Path:
         retriever_model_name=cfg.rag.retriever_model_name,
         retriever_batch_size=cfg.rag.retriever_batch_size,
         retriever_device=cfg.rag.retriever_device,
+        cache_dir=cfg.rag.cache_dir,
+        use_cache=cfg.rag.use_cache,
+        rebuild_cache=cfg.rag.rebuild_cache,
     )
     summaries: dict[str, str] = {}
     retrieval_json: dict[str, str] = {}

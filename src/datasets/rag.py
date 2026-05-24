@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,7 @@ class KnowledgeRetriever:
         retriever_model_name: str = "BAAI/bge-m3",
         retriever_batch_size: int = 64,
         retriever_device: str = "auto",
+        precomputed_node_matrix: np.ndarray | None = None,
     ) -> None:
         if not node_names:
             node_names = ["unknown disease"]
@@ -92,13 +94,14 @@ class KnowledgeRetriever:
             self.node_matrix = normalize(self.vectorizer.fit_transform(documents), norm="l2", axis=1)
         elif retriever_backend == "sentence_transformer":
             self.encoder = _load_sentence_transformer(retriever_model_name, retriever_device)
-            self.node_matrix = self.encoder.encode(
-                documents,
-                batch_size=retriever_batch_size,
-                convert_to_numpy=True,
-                normalize_embeddings=True,
-                show_progress_bar=True,
-            ).astype(np.float32)
+            if precomputed_node_matrix is not None:
+                self.node_matrix = precomputed_node_matrix.astype(np.float32)
+            else:
+                self.node_matrix = _encode_documents(
+                    self.encoder,
+                    documents,
+                    batch_size=retriever_batch_size,
+                )
         else:
             raise ValueError(f"Unsupported KG retriever backend: {retriever_backend}")
 
@@ -115,6 +118,9 @@ class KnowledgeRetriever:
         retriever_model_name: str = "BAAI/bge-m3",
         retriever_batch_size: int = 64,
         retriever_device: str = "auto",
+        cache_dir: Path | None = None,
+        use_cache: bool = True,
+        rebuild_cache: bool = False,
     ) -> KnowledgeRetriever:
         if kg_dir is None:
             if require_triples:
@@ -150,6 +156,36 @@ class KnowledgeRetriever:
                 retriever_device=retriever_device,
             )
 
+        kg_path = _primekg_triples_path(kg_dir, require_official=require_triples) if full_triples else None
+        cache_path = (
+            _primekg_cache_path(
+                cache_dir,
+                disease_path=disease_path,
+                kg_path=kg_path,
+                full_triples=full_triples,
+                triples_per_node_limit=triples_per_node_limit,
+                retriever_backend=retriever_backend,
+                retriever_model_name=retriever_model_name,
+                max_features=max_features,
+            )
+            if use_cache and cache_dir is not None
+            else None
+        )
+        if cache_path is not None and not rebuild_cache:
+            cached = _read_primekg_cache(cache_path, retriever_backend=retriever_backend)
+            if cached is not None:
+                return cls(
+                    cached["node_names"],
+                    cached["documents"],
+                    cached["triples_by_name"],
+                    max_features=max_features,
+                    retriever_backend=retriever_backend,
+                    retriever_model_name=retriever_model_name,
+                    retriever_batch_size=retriever_batch_size,
+                    retriever_device=retriever_device,
+                    precomputed_node_matrix=cached["node_matrix"],
+                )
+
         sep = "\t" if disease_path.suffix in {".tab", ".tsv"} else ","
         disease = pd.read_csv(disease_path, sep=sep)
         disease = disease.drop_duplicates("mondo_name", keep="first")
@@ -165,7 +201,7 @@ class KnowledgeRetriever:
             if full_triples
             else {}
         )
-        return cls(
+        retriever = cls(
             node_names,
             documents,
             triples_by_name,
@@ -175,6 +211,10 @@ class KnowledgeRetriever:
             retriever_batch_size=retriever_batch_size,
             retriever_device=retriever_device,
         )
+        if cache_path is not None:
+            node_matrix = retriever.node_matrix if retriever_backend == "sentence_transformer" else None
+            _write_primekg_cache(cache_path, node_names, documents, triples_by_name, node_matrix=node_matrix)
+        return retriever
 
     def retrieve(
         self,
@@ -221,12 +261,7 @@ class KnowledgeRetriever:
             return cosine_similarity(query, self.node_matrix)[0]
         if self.encoder is None:
             return None
-        query_embedding = self.encoder.encode(
-            [entity],
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        ).astype(np.float32)
+        query_embedding = _encode_query(self.encoder, entity)
         return np.matmul(query_embedding, self.node_matrix.T)[0]
 
 
@@ -374,10 +409,7 @@ def _load_primekg_triples(
     node_names: set[str] | None = None,
     triples_per_node_limit: int | None = None,
 ) -> dict[str, list[str]]:
-    official_kg_path = kg_dir / "kg.csv"
-    if require_official and not official_kg_path.exists():
-        raise FileNotFoundError(_primekg_missing_message(kg_dir, "kg.csv"))
-    kg_path = official_kg_path if official_kg_path.exists() else _first_existing(kg_dir, ["disease_subkg.csv"])
+    kg_path = _primekg_triples_path(kg_dir, require_official=require_official)
     if kg_path is None:
         return {}
     triples: dict[str, list[str]] = {}
@@ -413,6 +445,15 @@ def _load_primekg_triples(
     return triples
 
 
+def _primekg_triples_path(kg_dir: Path, *, require_official: bool) -> Path | None:
+    official_kg_path = kg_dir / "kg.csv"
+    if require_official and not official_kg_path.exists():
+        raise FileNotFoundError(_primekg_missing_message(kg_dir, "kg.csv"))
+    if official_kg_path.exists():
+        return official_kg_path
+    return _first_existing(kg_dir, ["disease_subkg.csv"])
+
+
 def _append_triple(
     triples: dict[str, list[str]],
     node_name: str,
@@ -443,6 +484,117 @@ def _load_sentence_transformer(model_name: str, device: str) -> Any:
     if resolved_device == "auto":
         resolved_device = "cpu"
     return SentenceTransformer(model_name, device=resolved_device)
+
+
+def _encode_documents(encoder: Any, documents: list[str], *, batch_size: int) -> np.ndarray:
+    if hasattr(encoder, "encode_document"):
+        return encoder.encode_document(
+            documents,
+            batch_size=batch_size,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=True,
+        ).astype(np.float32)
+    return encoder.encode(
+        documents,
+        batch_size=batch_size,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+        show_progress_bar=True,
+    ).astype(np.float32)
+
+
+def _encode_query(encoder: Any, query: str) -> np.ndarray:
+    if hasattr(encoder, "encode_query"):
+        return encoder.encode_query(
+            [query],
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        ).astype(np.float32)
+    return encoder.encode(
+        [query],
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    ).astype(np.float32)
+
+
+def _primekg_cache_path(
+    cache_dir: Path | None,
+    *,
+    disease_path: Path,
+    kg_path: Path | None,
+    full_triples: bool,
+    triples_per_node_limit: int | None,
+    retriever_backend: str,
+    retriever_model_name: str,
+    max_features: int,
+) -> Path | None:
+    if cache_dir is None:
+        return None
+    payload = {
+        "disease": _file_signature(disease_path),
+        "kg": _file_signature(kg_path) if kg_path is not None else None,
+        "full_triples": full_triples,
+        "triples_per_node_limit": triples_per_node_limit,
+        "retriever_backend": retriever_backend,
+        "retriever_model_name": retriever_model_name,
+        "max_features": max_features,
+        "version": 1,
+    }
+    key = sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    return cache_dir / key
+
+
+def _file_signature(path: Path) -> dict[str, object]:
+    stat = path.stat()
+    return {
+        "name": path.name,
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def _read_primekg_cache(cache_path: Path, *, retriever_backend: str) -> dict[str, Any] | None:
+    metadata_path = cache_path / "metadata.json"
+    triples_path = cache_path / "triples.json"
+    if not metadata_path.exists() or not triples_path.exists():
+        return None
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    node_matrix = None
+    matrix_path = cache_path / "node_matrix.npy"
+    if retriever_backend == "sentence_transformer":
+        if not matrix_path.exists():
+            return None
+        node_matrix = np.load(matrix_path).astype(np.float32)
+    return {
+        "node_names": metadata["node_names"],
+        "documents": metadata["documents"],
+        "triples_by_name": json.loads(triples_path.read_text(encoding="utf-8")),
+        "node_matrix": node_matrix,
+    }
+
+
+def _write_primekg_cache(
+    cache_path: Path,
+    node_names: list[str],
+    documents: list[str],
+    triples_by_name: dict[str, list[str]],
+    *,
+    node_matrix: Any | None,
+) -> None:
+    cache_path.mkdir(parents=True, exist_ok=True)
+    (cache_path / "metadata.json").write_text(
+        json.dumps({"node_names": node_names, "documents": documents}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (cache_path / "triples.json").write_text(
+        json.dumps(triples_by_name, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    if isinstance(node_matrix, np.ndarray):
+        np.save(cache_path / "node_matrix.npy", node_matrix.astype(np.float32))
 
 
 def _primekg_missing_message(kg_dir: Path, filename: str) -> str:

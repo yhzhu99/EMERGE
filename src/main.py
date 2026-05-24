@@ -10,13 +10,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run EMERGE reproduction stages.")
     parser.add_argument(
         "--stage",
-        choices=("download", "convert", "preprocess", "train", "all"),
+        choices=("download", "convert", "index-kg", "preprocess", "train", "all"),
         default="all",
         help="Pipeline stage to run.",
     )
     parser.add_argument("--config", type=Path, default=Path("configs/mimic4_demo.toml"))
     parser.add_argument("--seed", type=int, default=None, help="Train one seed instead of configured seeds.")
     parser.add_argument("--skip-download", action="store_true", help="Skip downloads with --stage all.")
+    parser.add_argument("--rebuild-cache", action="store_true", help="Rebuild cached PrimeKG retrieval artifacts.")
     primekg = parser.add_mutually_exclusive_group()
     primekg.add_argument(
         "--primekg-full",
@@ -39,6 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     from datasets.download import download_mimic_iv_demo, download_primekg
     from datasets.mimic4 import convert_mimic4_demo
     from datasets.processed import preprocess_emerge_dataset
+    from datasets.rag import KnowledgeRetriever
     from training.runner import train_from_config
 
     if args.stage == "download":
@@ -53,6 +55,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.stage == "convert":
         out_dir = convert_mimic4_demo(cfg)
         print(f"Wrote OneEHR tables to {out_dir}")
+        return 0
+
+    if args.stage == "index-kg":
+        KnowledgeRetriever.from_primekg(
+            cfg.data.kg_dir,
+            require_triples=cfg.rag.require_kg_triples,
+            triples_per_node_limit=cfg.rag.max_triples_per_node,
+            max_features=cfg.rag.vectorizer_max_features,
+            retriever_backend=cfg.rag.retriever_backend,
+            retriever_model_name=cfg.rag.retriever_model_name,
+            retriever_batch_size=cfg.rag.retriever_batch_size,
+            retriever_device=cfg.rag.retriever_device,
+            cache_dir=cfg.rag.cache_dir,
+            use_cache=True,
+            rebuild_cache=args.rebuild_cache or cfg.rag.rebuild_cache,
+        )
+        print(f"PrimeKG retrieval cache is available under {cfg.rag.cache_dir}")
         return 0
 
     if args.stage == "preprocess":
