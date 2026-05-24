@@ -1,4 +1,5 @@
 ######################
+paper/
 /data/*
 !/data/.gitignore
 !/data/README.md
