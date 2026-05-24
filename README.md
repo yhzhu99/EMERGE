@@ -74,9 +74,9 @@ runs/mimic4_demo_mortality/                 # checkpoints, metrics, predictions
 
 By default, the PrimeKG download is lightweight and includes `README.txt` and `disease_features.tab`, matching the current Dataverse filenames. Use `--primekg-full` to download all PrimeKG files listed in the original README, including `nodes.tab`, `edges.csv`, `kg.csv`, `drug_features.tab`, and grouped/intermediate KG files.
 
-## Reproduction Scope
+## Experiment Scope
 
-The default config uses the public MIMIC-IV demo. It validates the full data, RAG, and training pipeline, but it is too small to reproduce the paper's benchmark numbers. For the reported results, use the full MIMIC-III and MIMIC-IV benchmark cohorts with the paper's preprocessing, 70/10/20 split, and reported hyperparameters.
+The default config uses the public MIMIC-IV demo. It validates the full data, RAG, and training pipeline, but it is too small for the paper's benchmark numbers. For the reported tables, use the full MIMIC-III and MIMIC-IV benchmark cohorts with the paper's preprocessing, 70/10/20 split, and reported hyperparameters.
 
 ## Citation
 
