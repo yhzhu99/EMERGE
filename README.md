@@ -1,12 +1,6 @@
 # EMERGE
 
-**EMERGE: Enhancing Multimodal Electronic Health Records Predictive Modeling with Retrieval-Augmented Generation**
-
-Yinghao Zhu*, Changyu Ren*, Zixiang Wang, Xiaochen Zheng, Shiyun Xie, Junlan Feng, Xi Zhu, Zhoujun Li, Liantao Ma, Chengwei Pan
-
-Affiliations: Beihang University, Peking University, ETH Zurich, China Mobile Research Institute, Zhongguancun Laboratory.
-
-Accepted by **CIKM 2024**. Paper: https://doi.org/10.1145/3627673.3679582
+Official implementation of the paper [EMERGE: Enhancing Multimodal Electronic Health Records Predictive Modeling with Retrieval-Augmented Generation](https://doi.org/10.1145/3627673.3679582), accepted by **CIKM 2024**.
 
 EMERGE enhances multimodal EHR prediction by extracting abnormal time-series signals and disease entities from clinical text, retrieving disease knowledge from PrimeKG, generating patient-level RAG summaries, and fusing time-series, clinical-note, and RAG-summary representations with cross-attention.
 
