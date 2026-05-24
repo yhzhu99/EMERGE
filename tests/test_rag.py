@@ -33,3 +33,4 @@ def test_primekg_loads_official_triples(tmp_path: Path) -> None:
     assert retriever.triples_by_name["sepsis"] == [
         "(sepsis, associated with, inflammation)"
     ]
+    assert "inflammation" not in retriever.triples_by_name

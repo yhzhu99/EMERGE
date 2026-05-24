@@ -89,6 +89,7 @@ class KnowledgeRetriever:
         *,
         full_triples: bool = True,
         require_triples: bool = False,
+        triples_per_node_limit: int | None = None,
         max_features: int = 20000,
     ) -> KnowledgeRetriever:
         if kg_dir is None:
@@ -115,7 +116,12 @@ class KnowledgeRetriever:
         node_names = disease["mondo_name"].fillna("").astype(str).tolist()
         documents = [_build_node_document(row) for _, row in disease.iterrows()]
         triples_by_name = (
-            _load_primekg_triples(kg_dir, require_official=require_triples)
+            _load_primekg_triples(
+                kg_dir,
+                require_official=require_triples,
+                node_names=set(node_names),
+                triples_per_node_limit=triples_per_node_limit,
+            )
             if full_triples
             else {}
         )
@@ -295,7 +301,13 @@ def _build_node_document(row: pd.Series) -> str:
     return " ".join(values) or str(row.get("mondo_name", "unknown disease"))
 
 
-def _load_primekg_triples(kg_dir: Path, *, require_official: bool = False) -> dict[str, list[str]]:
+def _load_primekg_triples(
+    kg_dir: Path,
+    *,
+    require_official: bool = False,
+    node_names: set[str] | None = None,
+    triples_per_node_limit: int | None = None,
+) -> dict[str, list[str]]:
     official_kg_path = kg_dir / "kg.csv"
     if require_official and not official_kg_path.exists():
         raise FileNotFoundError(_primekg_missing_message(kg_dir, "kg.csv"))
@@ -314,11 +326,41 @@ def _load_primekg_triples(kg_dir: Path, *, require_official: bool = False) -> di
                     f"PrimeKG triples file {kg_path} must contain x_name, display_relation, and y_name columns."
                 )
             return {}
+        if node_names:
+            chunk = chunk[chunk["x_name"].isin(node_names) | chunk["y_name"].isin(node_names)]
         for row in chunk.itertuples(index=False):
             triple = f"({row.x_name}, {row.display_relation}, {row.y_name})"
-            triples.setdefault(str(row.x_name), []).append(triple)
-            triples.setdefault(str(row.y_name), []).append(triple)
+            _append_triple(
+                triples,
+                str(row.x_name),
+                triple,
+                node_names=node_names,
+                triples_per_node_limit=triples_per_node_limit,
+            )
+            _append_triple(
+                triples,
+                str(row.y_name),
+                triple,
+                node_names=node_names,
+                triples_per_node_limit=triples_per_node_limit,
+            )
     return triples
+
+
+def _append_triple(
+    triples: dict[str, list[str]],
+    node_name: str,
+    triple: str,
+    *,
+    node_names: set[str] | None,
+    triples_per_node_limit: int | None,
+) -> None:
+    if node_names is not None and node_name not in node_names:
+        return
+    node_triples = triples.setdefault(node_name, [])
+    if triples_per_node_limit is not None and len(node_triples) >= triples_per_node_limit:
+        return
+    node_triples.append(triple)
 
 
 def _primekg_missing_message(kg_dir: Path, filename: str) -> str:

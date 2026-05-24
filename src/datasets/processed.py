@@ -76,6 +76,7 @@ def preprocess_emerge_dataset(cfg: ExperimentConfig) -> Path:
     retriever = KnowledgeRetriever.from_primekg(
         cfg.data.kg_dir,
         require_triples=cfg.rag.require_kg_triples,
+        triples_per_node_limit=cfg.rag.max_triples_per_node,
         max_features=cfg.rag.vectorizer_max_features,
     )
     summaries: dict[str, str] = {}
