@@ -1,0 +1,60 @@
+[data]
+raw_dir = "data/raw/mimic-iv-demo/2.2"
+table_dir = "data/tables/mimic-iv-demo/mortality"
+processed_dir = "data/processed/mimic-iv-demo/mortality_lm"
+kg_dir = "data/kg/primekg"
+notes_file = ""
+task = "mortality"
+window_hours = 48
+bin_hours = 12
+max_numeric_features = 59
+embedding_dim = 768
+
+[rag]
+abnormal_zscore = 2.0
+kg_similarity_threshold = 0.7
+max_note_entities = 12
+max_kg_nodes = 10
+max_triples_per_node = 5
+vectorizer_max_features = 20000
+require_kg_triples = true
+retriever_backend = "sentence_transformer"
+retriever_model_name = "BAAI/bge-m3"
+retriever_batch_size = 64
+retriever_device = "auto"
+
+[text]
+embedding_backend = "transformer_cls"
+note_model_name = "yikuan8/Clinical-Longformer"
+summary_model_name = "yikuan8/Clinical-Longformer"
+batch_size = 2
+device = "auto"
+max_length = 4096
+
+[split]
+train_size = 0.7
+val_size = 0.1
+test_size = 0.2
+seed = 42
+
+[model]
+hidden_dim = 128
+ehr_net = "gru"
+text_fusion = "concat"
+modality_fusion = "ours"
+use_modality = "ehr_note_summary"
+num_heads = 4
+dropout = 0.25
+
+[trainer]
+batch_size = 256
+max_epochs = 100
+patience = 10
+learning_rate = 0.001
+weight_decay = 0.0
+focus_task = "outcome"
+device = "auto"
+seeds = [42]
+
+[output]
+run_dir = "runs/mimic4_demo_mortality_lm"

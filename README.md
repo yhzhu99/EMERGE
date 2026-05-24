@@ -43,6 +43,12 @@ source .venv/bin/activate
 
 No package installation step is required; run the source entry point directly.
 
+For the LM-heavy preprocessing path with BGE-M3 retrieval and Clinical-LongFormer embeddings:
+
+```bash
+uv sync --extra lm
+```
+
 ## Quickstart
 
 Run the MIMIC-IV demo pipeline with the official PrimeKG files required by EMERGE:
@@ -123,6 +129,17 @@ python src/main.py --stage preprocess --config configs/mimic4_demo.toml
 ```
 
 This writes `data/processed/mimic-iv-demo/mortality/emerge_dataset.npz`, `metadata.json`, `split.json`, and `rag_records.csv`. Training only reads these processed artifacts.
+
+The default demo config uses local TF-IDF/SVD text encoders so the full pipeline can run without
+downloading large language models. To use the paper's LM encoder choices for retrieval and text
+embeddings, run preprocessing with:
+
+```bash
+python src/main.py --stage preprocess --config configs/mimic4_demo_lm.toml
+```
+
+This config uses `BAAI/bge-m3` for PrimeKG/entity matching and `yikuan8/Clinical-Longformer`
+for frozen CLS note and RAG-summary embeddings.
 
 For full benchmark experiments, prepare the same three OneEHR files under a new `data/tables/<dataset>/<task>/` directory and point `table_dir`, `processed_dir`, and `kg_dir` in a TOML config to the corresponding paths.
 

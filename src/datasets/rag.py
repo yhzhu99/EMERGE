@@ -4,6 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -67,6 +68,10 @@ class KnowledgeRetriever:
         triples_by_name: dict[str, list[str]] | None = None,
         *,
         max_features: int = 20000,
+        retriever_backend: str = "tfidf",
+        retriever_model_name: str = "BAAI/bge-m3",
+        retriever_batch_size: int = 64,
+        retriever_device: str = "auto",
     ) -> None:
         if not node_names:
             node_names = ["unknown disease"]
@@ -74,13 +79,28 @@ class KnowledgeRetriever:
         self.node_names = node_names
         self.documents = documents
         self.triples_by_name = triples_by_name or {}
-        self.vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            ngram_range=(1, 2),
-            stop_words="english",
-            strip_accents="unicode",
-        )
-        self.node_matrix = normalize(self.vectorizer.fit_transform(documents), norm="l2", axis=1)
+        self.retriever_backend = retriever_backend
+        self.vectorizer: TfidfVectorizer | None = None
+        self.encoder: Any | None = None
+        if retriever_backend == "tfidf":
+            self.vectorizer = TfidfVectorizer(
+                max_features=max_features,
+                ngram_range=(1, 2),
+                stop_words="english",
+                strip_accents="unicode",
+            )
+            self.node_matrix = normalize(self.vectorizer.fit_transform(documents), norm="l2", axis=1)
+        elif retriever_backend == "sentence_transformer":
+            self.encoder = _load_sentence_transformer(retriever_model_name, retriever_device)
+            self.node_matrix = self.encoder.encode(
+                documents,
+                batch_size=retriever_batch_size,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                show_progress_bar=True,
+            ).astype(np.float32)
+        else:
+            raise ValueError(f"Unsupported KG retriever backend: {retriever_backend}")
 
     @classmethod
     def from_primekg(
@@ -91,11 +111,23 @@ class KnowledgeRetriever:
         require_triples: bool = False,
         triples_per_node_limit: int | None = None,
         max_features: int = 20000,
+        retriever_backend: str = "tfidf",
+        retriever_model_name: str = "BAAI/bge-m3",
+        retriever_batch_size: int = 64,
+        retriever_device: str = "auto",
     ) -> KnowledgeRetriever:
         if kg_dir is None:
             if require_triples:
                 raise FileNotFoundError(_primekg_missing_message(Path("data/kg/primekg"), "kg.csv"))
-            return cls([], [], max_features=max_features)
+            return cls(
+                [],
+                [],
+                max_features=max_features,
+                retriever_backend=retriever_backend,
+                retriever_model_name=retriever_model_name,
+                retriever_batch_size=retriever_batch_size,
+                retriever_device=retriever_device,
+            )
         kg_dir = Path(kg_dir)
         disease_path = _first_existing(
             kg_dir,
@@ -108,7 +140,15 @@ class KnowledgeRetriever:
                         kg_dir, "disease_features.tab or disease_features.csv"
                     )
                 )
-            return cls([], [], max_features=max_features)
+            return cls(
+                [],
+                [],
+                max_features=max_features,
+                retriever_backend=retriever_backend,
+                retriever_model_name=retriever_model_name,
+                retriever_batch_size=retriever_batch_size,
+                retriever_device=retriever_device,
+            )
 
         sep = "\t" if disease_path.suffix in {".tab", ".tsv"} else ","
         disease = pd.read_csv(disease_path, sep=sep)
@@ -125,7 +165,16 @@ class KnowledgeRetriever:
             if full_triples
             else {}
         )
-        return cls(node_names, documents, triples_by_name, max_features=max_features)
+        return cls(
+            node_names,
+            documents,
+            triples_by_name,
+            max_features=max_features,
+            retriever_backend=retriever_backend,
+            retriever_model_name=retriever_model_name,
+            retriever_batch_size=retriever_batch_size,
+            retriever_device=retriever_device,
+        )
 
     def retrieve(
         self,
@@ -138,10 +187,9 @@ class KnowledgeRetriever:
         results: list[RetrievedNode] = []
         seen_nodes: set[str] = set()
         for entity in deduplicate_entities(entities):
-            query = self.vectorizer.transform([entity])
-            if query.nnz == 0:
+            sims = self._similarities(entity)
+            if sims is None:
                 continue
-            sims = cosine_similarity(query, self.node_matrix)[0]
             best_idx = int(np.argmax(sims))
             best_score = float(sims[best_idx])
             if best_score < threshold:
@@ -162,6 +210,24 @@ class KnowledgeRetriever:
             if len(results) >= top_k:
                 break
         return results
+
+    def _similarities(self, entity: str) -> np.ndarray | None:
+        if self.retriever_backend == "tfidf":
+            if self.vectorizer is None:
+                return None
+            query = self.vectorizer.transform([entity])
+            if query.nnz == 0:
+                return None
+            return cosine_similarity(query, self.node_matrix)[0]
+        if self.encoder is None:
+            return None
+        query_embedding = self.encoder.encode(
+            [entity],
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        ).astype(np.float32)
+        return np.matmul(query_embedding, self.node_matrix.T)[0]
 
 
 def extract_note_entities(text: str, *, max_entities: int = 16) -> list[str]:
@@ -361,6 +427,22 @@ def _append_triple(
     if triples_per_node_limit is not None and len(node_triples) >= triples_per_node_limit:
         return
     node_triples.append(triple)
+
+
+def _load_sentence_transformer(model_name: str, device: str) -> Any:
+    try:
+        import torch
+        from sentence_transformers import SentenceTransformer
+    except ImportError as exc:
+        raise RuntimeError(
+            "Sentence-transformer KG retrieval requires optional LM dependencies. "
+            "Install them with `uv sync --extra lm`."
+        ) from exc
+
+    resolved_device = "cuda" if device == "auto" and torch.cuda.is_available() else device
+    if resolved_device == "auto":
+        resolved_device = "cpu"
+    return SentenceTransformer(model_name, device=resolved_device)
 
 
 def _primekg_missing_message(kg_dir: Path, filename: str) -> str:

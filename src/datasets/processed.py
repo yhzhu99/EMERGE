@@ -17,7 +17,7 @@ from datasets.rag import (
     retrieval_records_to_json,
 )
 from datasets.schema import load_oneehr_tables
-from datasets.text_embedding import TfidfSvdEncoder
+from datasets.text_embedding import build_text_encoder
 
 
 @dataclass(frozen=True)
@@ -78,6 +78,10 @@ def preprocess_emerge_dataset(cfg: ExperimentConfig) -> Path:
         require_triples=cfg.rag.require_kg_triples,
         triples_per_node_limit=cfg.rag.max_triples_per_node,
         max_features=cfg.rag.vectorizer_max_features,
+        retriever_backend=cfg.rag.retriever_backend,
+        retriever_model_name=cfg.rag.retriever_model_name,
+        retriever_batch_size=cfg.rag.retriever_batch_size,
+        retriever_device=cfg.rag.retriever_device,
     )
     summaries: dict[str, str] = {}
     retrieval_json: dict[str, str] = {}
@@ -100,7 +104,7 @@ def preprocess_emerge_dataset(cfg: ExperimentConfig) -> Path:
         split=split,
         notes=note_text_by_patient,
         summaries=summaries,
-        embedding_dim=cfg.data.embedding_dim,
+        cfg=cfg,
     )
 
     y = np.asarray(
@@ -371,10 +375,24 @@ def _encode_texts(
     split: dict[str, list[str]],
     notes: dict[str, str],
     summaries: dict[str, str],
-    embedding_dim: int,
+    cfg: ExperimentConfig,
 ) -> tuple[np.ndarray, np.ndarray]:
-    note_encoder = TfidfSvdEncoder(embedding_dim=embedding_dim)
-    summary_encoder = TfidfSvdEncoder(embedding_dim=embedding_dim)
+    note_encoder = build_text_encoder(
+        backend=cfg.text.embedding_backend,
+        embedding_dim=cfg.data.embedding_dim,
+        model_name=cfg.text.note_model_name,
+        batch_size=cfg.text.batch_size,
+        device=cfg.text.device,
+        max_length=cfg.text.max_length,
+    )
+    summary_encoder = build_text_encoder(
+        backend=cfg.text.embedding_backend,
+        embedding_dim=cfg.data.embedding_dim,
+        model_name=cfg.text.summary_model_name,
+        batch_size=cfg.text.batch_size,
+        device=cfg.text.device,
+        max_length=cfg.text.max_length,
+    )
     note_encoder.fit([notes.get(pid, "") for pid in split["train"]])
     summary_encoder.fit([summaries.get(pid, "") for pid in split["train"]])
     note_matrix = note_encoder.transform([notes.get(pid, "") for pid in patient_ids])

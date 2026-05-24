@@ -18,6 +18,18 @@ max_kg_nodes = 10
 max_triples_per_node = 5
 vectorizer_max_features = 20000
 require_kg_triples = true
+retriever_backend = "tfidf"
+retriever_model_name = "BAAI/bge-m3"
+retriever_batch_size = 64
+retriever_device = "auto"
+
+[text]
+embedding_backend = "tfidf_svd"
+note_model_name = "yikuan8/Clinical-Longformer"
+summary_model_name = "yikuan8/Clinical-Longformer"
+batch_size = 8
+device = "auto"
+max_length = 4096
 
 [split]
 train_size = 0.7

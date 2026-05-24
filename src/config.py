@@ -28,6 +28,20 @@ class RAGConfig:
     max_triples_per_node: int = 5
     vectorizer_max_features: int = 20000
     require_kg_triples: bool = True
+    retriever_backend: str = "tfidf"
+    retriever_model_name: str = "BAAI/bge-m3"
+    retriever_batch_size: int = 64
+    retriever_device: str = "auto"
+
+
+@dataclass(frozen=True)
+class TextConfig:
+    embedding_backend: str = "tfidf_svd"
+    note_model_name: str = "yikuan8/Clinical-Longformer"
+    summary_model_name: str = "yikuan8/Clinical-Longformer"
+    batch_size: int = 8
+    device: str = "auto"
+    max_length: int = 4096
 
 
 @dataclass(frozen=True)
@@ -70,6 +84,7 @@ class OutputConfig:
 class ExperimentConfig:
     data: DataConfig = field(default_factory=DataConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
+    text: TextConfig = field(default_factory=TextConfig)
     split: SplitConfig = field(default_factory=SplitConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
@@ -81,6 +96,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
 
     data_default = DataConfig()
     rag_default = RAGConfig()
+    text_default = TextConfig()
     split_default = SplitConfig()
     model_default = ModelConfig()
     trainer_default = TrainerConfig()
@@ -88,6 +104,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
 
     data_raw = raw.get("data", {})
     rag_raw = raw.get("rag", {})
+    text_raw = raw.get("text", {})
     split_raw = raw.get("split", {})
     model_raw = raw.get("model", {})
     trainer_raw = raw.get("trainer", {})
@@ -121,6 +138,24 @@ def load_config(path: str | Path) -> ExperimentConfig:
             rag_raw.get("vectorizer_max_features", rag_default.vectorizer_max_features)
         ),
         require_kg_triples=bool(rag_raw.get("require_kg_triples", rag_default.require_kg_triples)),
+        retriever_backend=str(rag_raw.get("retriever_backend", rag_default.retriever_backend)),
+        retriever_model_name=str(
+            rag_raw.get("retriever_model_name", rag_default.retriever_model_name)
+        ),
+        retriever_batch_size=int(
+            rag_raw.get("retriever_batch_size", rag_default.retriever_batch_size)
+        ),
+        retriever_device=str(rag_raw.get("retriever_device", rag_default.retriever_device)),
+    )
+    text = TextConfig(
+        embedding_backend=str(text_raw.get("embedding_backend", text_default.embedding_backend)),
+        note_model_name=str(text_raw.get("note_model_name", text_default.note_model_name)),
+        summary_model_name=str(
+            text_raw.get("summary_model_name", text_default.summary_model_name)
+        ),
+        batch_size=int(text_raw.get("batch_size", text_default.batch_size)),
+        device=str(text_raw.get("device", text_default.device)),
+        max_length=int(text_raw.get("max_length", text_default.max_length)),
     )
     split = SplitConfig(
         train_size=float(split_raw.get("train_size", split_default.train_size)),
@@ -151,7 +186,15 @@ def load_config(path: str | Path) -> ExperimentConfig:
 
     if abs(split.train_size + split.val_size + split.test_size - 1.0) > 1e-6:
         raise ValueError("split train_size + val_size + test_size must equal 1.0")
-    return ExperimentConfig(data=data, rag=rag, split=split, model=model, trainer=trainer, output=output)
+    return ExperimentConfig(
+        data=data,
+        rag=rag,
+        text=text,
+        split=split,
+        model=model,
+        trainer=trainer,
+        output=output,
+    )
 
 
 def _as_path(value: object, default: Path) -> Path:
