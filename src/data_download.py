@@ -41,7 +41,7 @@ def download_mimic_iv_demo(data_dir: Path, version: str = "2.2") -> Path:
     enough for local smoke tests; it intentionally excludes free-text clinical notes.
     """
 
-    output_dir = data_dir / "raw" / f"mimic-iv-demo-{version}"
+    output_dir = data_dir / "EMERGE" / "raw" / f"mimic-iv-demo-{version}"
     output_dir.mkdir(parents=True, exist_ok=True)
     base_url = MIMIC_IV_DEMO_BASE_URL.format(version=version)
 
@@ -70,7 +70,7 @@ def download_mimic_iv_demo(data_dir: Path, version: str = "2.2") -> Path:
 
 
 def download_primekg(data_dir: Path, full: bool = False) -> Path:
-    output_dir = data_dir / "kg" / "primekg"
+    output_dir = data_dir / "EMERGE" / "kg" / "primekg"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     download_file(PRIMEKG_FILES["disease_features.tab"], output_dir / "disease_features.tab")

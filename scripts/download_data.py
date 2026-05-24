@@ -7,7 +7,7 @@ from _path import add_src_to_path
 
 add_src_to_path()
 
-from emerge.data.download import download_mimic_iv_demo, download_primekg
+from data_download import download_mimic_iv_demo, download_primekg
 
 
 def main() -> None:

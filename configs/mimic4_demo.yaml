@@ -1,7 +1,7 @@
 seed: 42
 dataset:
-  raw_dir: data/raw/mimic-iv-demo-2.2
-  output_dir: datasets/mimic4_demo
+  raw_dir: ../data/EMERGE/raw/mimic-iv-demo-2.2
+  output_dir: ../data/EMERGE/oneehr/mimic4_demo
   notes_file: null
   prediction_window_hours: 48
   bucket_hours: 12
