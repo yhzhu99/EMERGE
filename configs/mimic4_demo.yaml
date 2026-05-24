@@ -9,9 +9,9 @@ dataset:
   test_fraction: 0.2
   include_missing_masks: true
 rag:
-  kg_dir: data/kg/primekg
+  kg_dir: ../data/EMERGE/kg/primekg
   abnormal_zscore: 2.0
-  kg_similarity_threshold: 0.35
+  kg_similarity_threshold: 0.7
   max_note_entities: 12
   max_kg_nodes: 10
   max_triples_per_node: 5
