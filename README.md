@@ -45,7 +45,7 @@ No package installation step is required; run the source entry point directly.
 
 ## Quickstart
 
-Run the MIMIC-IV demo pipeline:
+Run the MIMIC-IV demo pipeline with the official PrimeKG files required by EMERGE:
 
 ```bash
 python src/main.py --stage all --config configs/mimic4_demo.toml
@@ -70,7 +70,13 @@ data/processed/mimic-iv-demo/mortality/     # EMERGE tensors, RAG records, split
 runs/mimic4_demo_mortality/                 # checkpoints, metrics, predictions
 ```
 
-By default, the PrimeKG download is lightweight and includes `README.txt` and `disease_features.tab`, matching the current Dataverse filenames. Use `--primekg-full` to download all PrimeKG files listed in the original README, including `nodes.tab`, `edges.csv`, `kg.csv`, `drug_features.tab`, and grouped/intermediate KG files.
+PrimeKG is downloaded from the official Harvard Dataverse source
+[10.7910/DVN/IXA7BM](https://doi.org/10.7910/DVN/IXA7BM). The default download includes
+the official files required by EMERGE RAG: `README.txt`, `disease_features.tab`, and
+`kg.csv`. Use `--primekg-full` to download every PrimeKG file published on Dataverse,
+including `nodes.tab`, `edges.csv`, `drug_features.tab`, and grouped/intermediate KG files.
+The original PrimeKG README names some tabular files with `.csv`; the current Dataverse
+release provides those files as `.tab`, and the loader supports both names.
 
 ## Data Preparation
 
@@ -82,7 +88,17 @@ EMERGE separates reusable EHR conversion from model-specific preprocessing.
 python src/main.py --stage download --config configs/mimic4_demo.toml
 ```
 
-This writes the public MIMIC-IV demo to `data/raw/mimic-iv-demo/2.2/` and lightweight PrimeKG files to `data/kg/primekg/`.
+This writes the public MIMIC-IV demo to `data/raw/mimic-iv-demo/2.2/` and the official
+PrimeKG files required by EMERGE to `data/kg/primekg/`.
+
+To download every official PrimeKG Dataverse file:
+
+```bash
+python src/main.py --stage download --config configs/mimic4_demo.toml --primekg-full
+```
+
+For lightweight smoke tests only, use `--primekg-lightweight`; with the default config,
+preprocessing requires `kg.csv` and will fail fast if the official triples file is missing.
 
 2. Convert raw MIMIC-IV tables to the OneEHR three-table format:
 
@@ -110,7 +126,7 @@ This writes `data/processed/mimic-iv-demo/mortality/emerge_dataset.npz`, `metada
 
 For full benchmark experiments, prepare the same three OneEHR files under a new `data/tables/<dataset>/<task>/` directory and point `table_dir`, `processed_dir`, and `kg_dir` in a TOML config to the corresponding paths.
 
-## Experiment Scope
+## Benchmark Notes
 
 The default config uses the public MIMIC-IV demo. It validates the full data, RAG, and training pipeline, but it is too small for the paper's benchmark numbers. For the reported tables, use the full MIMIC-III and MIMIC-IV benchmark cohorts with the paper's preprocessing, 70/10/20 split, and reported hyperparameters.
 

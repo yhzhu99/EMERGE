@@ -17,7 +17,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, default=Path("configs/mimic4_demo.toml"))
     parser.add_argument("--seed", type=int, default=None, help="Train one seed instead of configured seeds.")
     parser.add_argument("--skip-download", action="store_true", help="Skip downloads with --stage all.")
-    parser.add_argument("--primekg-full", action="store_true", help="Download full PrimeKG kg.csv triples.")
+    primekg = parser.add_mutually_exclusive_group()
+    primekg.add_argument(
+        "--primekg-full",
+        action="store_true",
+        help="Download every official PrimeKG file from Harvard Dataverse.",
+    )
+    primekg.add_argument(
+        "--primekg-lightweight",
+        action="store_true",
+        help="Download only README.txt and disease_features.tab for smoke tests.",
+    )
     return parser
 
 
@@ -33,7 +43,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.stage == "download":
         download_mimic_iv_demo(cfg.data.raw_dir)
-        download_primekg(cfg.data.kg_dir, full=args.primekg_full)
+        download_primekg(
+            cfg.data.kg_dir,
+            full=args.primekg_full,
+            lightweight=args.primekg_lightweight,
+        )
         return 0
 
     if args.stage == "convert":
@@ -55,7 +69,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.stage == "all":
         if not args.skip_download:
             download_mimic_iv_demo(cfg.data.raw_dir)
-            download_primekg(cfg.data.kg_dir, full=args.primekg_full)
+            download_primekg(
+                cfg.data.kg_dir,
+                full=args.primekg_full,
+                lightweight=args.primekg_lightweight,
+            )
         convert_mimic4_demo(cfg)
         preprocess_emerge_dataset(cfg)
         seeds = (args.seed,) if args.seed is not None else cfg.trainer.seeds

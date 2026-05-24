@@ -27,6 +27,7 @@ class RAGConfig:
     max_kg_nodes: int = 10
     max_triples_per_node: int = 5
     vectorizer_max_features: int = 20000
+    require_kg_triples: bool = True
 
 
 @dataclass(frozen=True)
@@ -119,6 +120,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
         vectorizer_max_features=int(
             rag_raw.get("vectorizer_max_features", rag_default.vectorizer_max_features)
         ),
+        require_kg_triples=bool(rag_raw.get("require_kg_triples", rag_default.require_kg_triples)),
     )
     split = SplitConfig(
         train_size=float(split_raw.get("train_size", split_default.train_size)),

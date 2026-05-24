@@ -6,11 +6,12 @@ from pathlib import Path
 
 import requests
 
-
 MIMIC_IV_DEMO_BASE_URL = "https://physionet.org/files/mimic-iv-demo/{version}/"
 PRIMEKG_DATASET_API = "https://dataverse.harvard.edu/api/datasets/:persistentId/"
 PRIMEKG_PERSISTENT_ID = "doi:10.7910/DVN/IXA7BM"
+PRIMEKG_DATASET_URL = "https://doi.org/10.7910/DVN/IXA7BM"
 PRIMEKG_LIGHTWEIGHT_FILES = ("README.txt", "disease_features.tab")
+PRIMEKG_REQUIRED_FILES = ("README.txt", "disease_features.tab", "kg.csv")
 PRIMEKG_FULL_FILES = (
     "README.txt",
     "nodes.tab",
@@ -76,18 +77,33 @@ def download_mimic_iv_demo(output_dir: Path, version: str = "2.2") -> Path:
     return output_dir
 
 
-def download_primekg(output_dir: Path, full: bool = False) -> Path:
+def download_primekg(output_dir: Path, *, full: bool = False, lightweight: bool = False) -> Path:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    if full and lightweight:
+        raise ValueError("PrimeKG download cannot be both full and lightweight.")
 
     files = _primekg_dataverse_files()
-    wanted = PRIMEKG_FULL_FILES if full else PRIMEKG_LIGHTWEIGHT_FILES
+    if full:
+        wanted = PRIMEKG_FULL_FILES
+    elif lightweight:
+        wanted = PRIMEKG_LIGHTWEIGHT_FILES
+    else:
+        wanted = PRIMEKG_REQUIRED_FILES
+
     for filename in wanted:
         if filename not in files:
-            raise FileNotFoundError(f"PrimeKG Dataverse file not found: {filename}")
+            raise FileNotFoundError(
+                f"PrimeKG official Dataverse file not found: {filename} "
+                f"from {PRIMEKG_DATASET_URL}"
+            )
         download_file(files[filename], output_dir / filename)
-    if not full:
-        print("Downloaded lightweight PrimeKG files. Re-run with --primekg-full for all README files.")
+    if lightweight:
+        print("Downloaded lightweight PrimeKG files for smoke tests only.")
+    elif full:
+        print("Downloaded all official PrimeKG files listed on Dataverse.")
+    else:
+        print("Downloaded official PrimeKG files required by EMERGE RAG.")
     print(f"PrimeKG files are available at {output_dir}")
     return output_dir
 

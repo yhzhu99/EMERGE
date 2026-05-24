@@ -17,6 +17,7 @@ max_note_entities = 12
 max_kg_nodes = 10
 max_triples_per_node = 5
 vectorizer_max_features = 20000
+require_kg_triples = true
 
 [split]
 train_size = 0.7

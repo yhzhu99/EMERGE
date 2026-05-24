@@ -11,7 +11,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 
-
 DISEASE_HINTS = (
     "disease",
     "syndrome",
@@ -89,9 +88,12 @@ class KnowledgeRetriever:
         kg_dir: Path | None,
         *,
         full_triples: bool = True,
+        require_triples: bool = False,
         max_features: int = 20000,
-    ) -> "KnowledgeRetriever":
+    ) -> KnowledgeRetriever:
         if kg_dir is None:
+            if require_triples:
+                raise FileNotFoundError(_primekg_missing_message(Path("data/kg/primekg"), "kg.csv"))
             return cls([], [], max_features=max_features)
         kg_dir = Path(kg_dir)
         disease_path = _first_existing(
@@ -99,6 +101,12 @@ class KnowledgeRetriever:
             ["disease_features.tab", "disease_features.tsv", "disease_features.csv"],
         )
         if disease_path is None:
+            if require_triples:
+                raise FileNotFoundError(
+                    _primekg_missing_message(
+                        kg_dir, "disease_features.tab or disease_features.csv"
+                    )
+                )
             return cls([], [], max_features=max_features)
 
         sep = "\t" if disease_path.suffix in {".tab", ".tsv"} else ","
@@ -106,7 +114,11 @@ class KnowledgeRetriever:
         disease = disease.drop_duplicates("mondo_name", keep="first")
         node_names = disease["mondo_name"].fillna("").astype(str).tolist()
         documents = [_build_node_document(row) for _, row in disease.iterrows()]
-        triples_by_name = _load_primekg_triples(kg_dir) if full_triples else {}
+        triples_by_name = (
+            _load_primekg_triples(kg_dir, require_official=require_triples)
+            if full_triples
+            else {}
+        )
         return cls(node_names, documents, triples_by_name, max_features=max_features)
 
     def retrieve(
@@ -283,8 +295,11 @@ def _build_node_document(row: pd.Series) -> str:
     return " ".join(values) or str(row.get("mondo_name", "unknown disease"))
 
 
-def _load_primekg_triples(kg_dir: Path) -> dict[str, list[str]]:
-    kg_path = _first_existing(kg_dir, ["kg.csv", "disease_subkg.csv"])
+def _load_primekg_triples(kg_dir: Path, *, require_official: bool = False) -> dict[str, list[str]]:
+    official_kg_path = kg_dir / "kg.csv"
+    if require_official and not official_kg_path.exists():
+        raise FileNotFoundError(_primekg_missing_message(kg_dir, "kg.csv"))
+    kg_path = official_kg_path if official_kg_path.exists() else _first_existing(kg_dir, ["disease_subkg.csv"])
     if kg_path is None:
         return {}
     triples: dict[str, list[str]] = {}
@@ -294,9 +309,22 @@ def _load_primekg_triples(kg_dir: Path) -> dict[str, list[str]]:
         usecols = ["x_name", "display_relation", "y_name", "x_type", "y_type"]
     for chunk in pd.read_csv(kg_path, usecols=usecols, chunksize=200000):
         if not {"x_name", "display_relation", "y_name"}.issubset(chunk.columns):
+            if require_official:
+                raise ValueError(
+                    f"PrimeKG triples file {kg_path} must contain x_name, display_relation, and y_name columns."
+                )
             return {}
         for row in chunk.itertuples(index=False):
             triple = f"({row.x_name}, {row.display_relation}, {row.y_name})"
             triples.setdefault(str(row.x_name), []).append(triple)
             triples.setdefault(str(row.y_name), []).append(triple)
     return triples
+
+
+def _primekg_missing_message(kg_dir: Path, filename: str) -> str:
+    return (
+        f"PrimeKG {filename} is required for complete EMERGE RAG preprocessing but was not found in "
+        f"{kg_dir}. Run `python src/main.py --stage download --config configs/mimic4_demo.toml` "
+        "to download the official required PrimeKG files, or add `--primekg-full` to download every "
+        "official Dataverse file."
+    )
