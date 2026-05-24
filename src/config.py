@@ -53,8 +53,8 @@ class LLMConfig:
     summary_backend: str = "template"
     api_base_url: str = "https://api.deepseek.com"
     api_key_env: str = "DEEPSEEK_API_KEY"
-    entity_model_name: str = "qwen-7b"
-    summary_model_name: str = "deepseek-chat"
+    entity_model_name: str = "deepseek-v4-flash"
+    summary_model_name: str = "deepseek-v4-flash"
     max_entity_rounds: int = 1
     max_entity_tokens: int = 256
     max_summary_tokens: int = 256
@@ -79,6 +79,8 @@ class ModelConfig:
     modality_fusion: str = "ours"
     use_modality: str = "ehr_note_summary"
     num_heads: int = 4
+    num_layers: int = 1
+    ffn_multiplier: int = 4
     dropout: float = 0.25
 
 
@@ -209,6 +211,8 @@ def load_config(path: str | Path) -> ExperimentConfig:
         modality_fusion=str(model_raw.get("modality_fusion", model_default.modality_fusion)),
         use_modality=str(model_raw.get("use_modality", model_default.use_modality)),
         num_heads=int(model_raw.get("num_heads", model_default.num_heads)),
+        num_layers=int(model_raw.get("num_layers", model_default.num_layers)),
+        ffn_multiplier=int(model_raw.get("ffn_multiplier", model_default.ffn_multiplier)),
         dropout=float(model_raw.get("dropout", model_default.dropout)),
     )
     trainer = TrainerConfig(

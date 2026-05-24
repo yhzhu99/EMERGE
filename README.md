@@ -141,11 +141,24 @@ python src/main.py --stage preprocess --config configs/mimic4_demo_lm.toml
 This config uses `BAAI/bge-m3` for PrimeKG/entity matching and `yikuan8/Clinical-Longformer`
 for frozen CLS note and RAG-summary embeddings.
 
+The 2026 config keeps Clinical-LongFormer as the default clinical text encoder, upgrades KG
+retrieval to `Qwen/Qwen3-Embedding-0.6B`, and uses the newer token-level fusion model:
+
+```bash
+python src/main.py --stage preprocess --config configs/mimic4_demo_2026.toml
+python src/main.py --stage train --config configs/mimic4_demo_2026.toml --seed 42
+```
+
+`configs/mimic4_demo_modernbert.toml` is provided for ablation with `answerdotai/ModernBERT-base`.
+ModernBERT is a stronger general long-context encoder, but Clinical-LongFormer remains the default
+for EMERGE because it is clinical-domain and matches the paper's frozen CLS-token setup.
+
 LLM entity extraction and summary generation are controlled by the `[llm]` section. The default
 uses local rules and template summaries for reproducible demo runs. Set `entity_backend` or
 `summary_backend` to `openai_compatible`, point `api_base_url` to a Qwen/vLLM/DeepSeek-compatible
 chat-completions endpoint, and set the environment variable named by `api_key_env` to enable
-prompted entity extraction or RAG summary generation.
+prompted entity extraction or RAG summary generation. The default OpenAI-compatible model name is
+`deepseek-v4-flash`.
 
 For full benchmark experiments, prepare the same three OneEHR files under a new `data/tables/<dataset>/<task>/` directory and point `table_dir`, `processed_dir`, and `kg_dir` in a TOML config to the corresponding paths.
 

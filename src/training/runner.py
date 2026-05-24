@@ -78,6 +78,8 @@ def train_one_seed(cfg: ExperimentConfig, *, seed: int, output_dir: Path) -> dic
         modality_fusion=cfg.model.modality_fusion,
         use_modality=cfg.model.use_modality,
         num_heads=cfg.model.num_heads,
+        num_layers=cfg.model.num_layers,
+        ffn_multiplier=cfg.model.ffn_multiplier,
         dropout=cfg.model.dropout,
     ).to(device)
     optimizer = torch.optim.AdamW(

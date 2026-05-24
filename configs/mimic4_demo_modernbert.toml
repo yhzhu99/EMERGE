@@ -1,0 +1,79 @@
+[data]
+raw_dir = "data/raw/mimic-iv-demo/2.2"
+table_dir = "data/tables/mimic-iv-demo/mortality"
+processed_dir = "data/processed/mimic-iv-demo/mortality_modernbert"
+kg_dir = "data/kg/primekg"
+notes_file = ""
+task = "mortality"
+window_hours = 48
+bin_hours = 12
+max_numeric_features = 59
+embedding_dim = 768
+
+[rag]
+abnormal_zscore = 2.0
+kg_similarity_threshold = 0.7
+max_note_entities = 12
+max_kg_nodes = 10
+max_triples_per_node = 5
+vectorizer_max_features = 20000
+require_kg_triples = true
+retriever_backend = "sentence_transformer"
+retriever_model_name = "Qwen/Qwen3-Embedding-0.6B"
+retriever_batch_size = 32
+retriever_device = "auto"
+cache_dir = "data/cache/primekg"
+use_cache = true
+rebuild_cache = false
+
+[text]
+embedding_backend = "transformer_cls"
+note_model_name = "answerdotai/ModernBERT-base"
+summary_model_name = "answerdotai/ModernBERT-base"
+batch_size = 2
+device = "auto"
+max_length = 8192
+
+[llm]
+entity_backend = "rules"
+summary_backend = "template"
+api_base_url = "https://api.deepseek.com"
+api_key_env = "DEEPSEEK_API_KEY"
+entity_model_name = "deepseek-v4-flash"
+summary_model_name = "deepseek-v4-flash"
+max_entity_rounds = 1
+max_entity_tokens = 256
+max_summary_tokens = 256
+temperature = 0.0
+timeout_seconds = 60
+fallback_to_local = true
+
+[split]
+train_size = 0.7
+val_size = 0.1
+test_size = 0.2
+seed = 42
+
+[model]
+hidden_dim = 128
+ehr_net = "modern_transformer"
+text_fusion = "gated"
+modality_fusion = "token_transformer"
+use_modality = "ehr_note_summary"
+num_heads = 4
+num_layers = 2
+ffn_multiplier = 4
+dropout = 0.25
+
+[trainer]
+batch_size = 256
+max_epochs = 100
+patience = 10
+learning_rate = 0.001
+weight_decay = 0.0
+focus_task = "outcome"
+device = "auto"
+seeds = [42]
+
+[output]
+run_dir = "runs/mimic4_demo_mortality_modernbert"

@@ -24,3 +24,26 @@ def test_emerge_forward_shape() -> None:
         torch.randn(3, 768),
     )
     assert logits.shape == (3, 2)
+
+
+def test_emerge_2026_forward_shape() -> None:
+    model = EMERGEPredictor(
+        input_ehr_dim=61,
+        input_note_dim=768,
+        input_summary_dim=768,
+        hidden_dim=32,
+        ehr_net="modern_transformer",
+        text_fusion="gated",
+        modality_fusion="token_transformer",
+        use_modality="ehr_note_summary",
+        num_heads=4,
+        num_layers=2,
+        ffn_multiplier=4,
+        dropout=0.0,
+    )
+    logits = model(
+        torch.randn(3, 4, 61),
+        torch.randn(3, 768),
+        torch.randn(3, 768),
+    )
+    assert logits.shape == (3, 2)

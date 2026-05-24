@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import math
+
 import torch
 from torch import nn
 
 
 class EhrEncoder(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, ehr_net: str = "gru") -> None:
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        ehr_net: str = "gru",
+        *,
+        num_heads: int = 4,
+        num_layers: int = 1,
+        dropout: float = 0.25,
+        ffn_multiplier: int = 4,
+    ) -> None:
         super().__init__()
         self.ehr_net = ehr_net
         if ehr_net == "gru":
@@ -18,13 +30,36 @@ class EhrEncoder(nn.Module):
             self.proj = nn.Linear(input_dim, hidden_dim)
             layer = nn.TransformerEncoderLayer(
                 d_model=hidden_dim,
-                nhead=4,
-                dim_feedforward=hidden_dim * 4,
-                dropout=0.25,
+                nhead=num_heads,
+                dim_feedforward=hidden_dim * ffn_multiplier,
+                dropout=dropout,
                 batch_first=True,
                 activation="gelu",
             )
-            self.encoder = nn.TransformerEncoder(layer, num_layers=1)
+            self.encoder = nn.TransformerEncoder(
+                layer,
+                num_layers=num_layers,
+                enable_nested_tensor=False,
+            )
+        elif ehr_net == "modern_transformer":
+            self.proj = nn.Linear(input_dim, hidden_dim)
+            self.cls_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
+            self.positional_encoding = SinusoidalPositionEncoding(hidden_dim)
+            layer = nn.TransformerEncoderLayer(
+                d_model=hidden_dim,
+                nhead=num_heads,
+                dim_feedforward=hidden_dim * ffn_multiplier,
+                dropout=dropout,
+                batch_first=True,
+                activation="gelu",
+                norm_first=True,
+            )
+            self.encoder = nn.TransformerEncoder(
+                layer,
+                num_layers=num_layers,
+                enable_nested_tensor=False,
+            )
+            self.norm = nn.LayerNorm(hidden_dim)
         else:
             raise ValueError(f"Unsupported EHR encoder: {ehr_net}")
 
@@ -32,10 +67,34 @@ class EhrEncoder(nn.Module):
         if self.ehr_net == "transformer":
             out = self.encoder(self.proj(x))
             return out[:, -1, :]
+        if self.ehr_net == "modern_transformer":
+            projected = self.proj(x)
+            cls = self.cls_token.expand(projected.size(0), -1, -1)
+            encoded = self.positional_encoding(torch.cat([cls, projected], dim=1))
+            out = self.encoder(encoded)
+            return self.norm(out[:, 0, :])
         out, hidden = self.encoder(x)
         if isinstance(hidden, tuple):
             hidden = hidden[0]
         return hidden[-1]
+
+
+class SinusoidalPositionEncoding(nn.Module):
+    def __init__(self, hidden_dim: int) -> None:
+        super().__init__()
+        self.hidden_dim = hidden_dim
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        seq_len = x.size(1)
+        position = torch.arange(seq_len, device=x.device, dtype=x.dtype).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, self.hidden_dim, 2, device=x.device, dtype=x.dtype)
+            * (-math.log(10000.0) / self.hidden_dim)
+        )
+        pe = torch.zeros(seq_len, self.hidden_dim, device=x.device, dtype=x.dtype)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term[: pe[:, 1::2].shape[1]])
+        return x + pe.unsqueeze(0)
 
 
 class CrossAttentionFusion(nn.Module):
@@ -111,6 +170,60 @@ class Concatenation(nn.Module):
         return self.net(torch.cat([first, second], dim=-1))
 
 
+class TokenTransformerFusion(nn.Module):
+    def __init__(
+        self,
+        hidden_dim: int,
+        num_heads: int = 4,
+        num_layers: int = 1,
+        dropout: float = 0.25,
+        ffn_multiplier: int = 4,
+    ) -> None:
+        super().__init__()
+        self.modality_embedding = nn.Parameter(torch.zeros(1, 3, hidden_dim))
+        layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=num_heads,
+            dim_feedforward=hidden_dim * ffn_multiplier,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+            norm_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(
+            layer,
+            num_layers=num_layers,
+            enable_nested_tensor=False,
+        )
+        self.pool = nn.Linear(hidden_dim, 1)
+        self.out = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+        self.norm = nn.LayerNorm(hidden_dim)
+
+    def forward(
+        self,
+        ehr: torch.Tensor,
+        note: torch.Tensor,
+        summary: torch.Tensor,
+        token_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        tokens = torch.stack([ehr, note, summary], dim=1) + self.modality_embedding
+        if token_mask is None:
+            token_mask = torch.ones(tokens.shape[:2], dtype=torch.bool, device=tokens.device)
+        encoded = self.encoder(tokens, src_key_padding_mask=~token_mask)
+        scores = self.pool(encoded).squeeze(-1).masked_fill(~token_mask, -torch.inf)
+        weights = torch.softmax(scores, dim=1).unsqueeze(-1)
+        pooled = (encoded * weights).sum(dim=1)
+        residual = (tokens * token_mask.unsqueeze(-1)).sum(dim=1) / token_mask.sum(
+            dim=1, keepdim=True
+        ).clamp_min(1)
+        return self.norm(self.out(pooled) + residual)
+
+
 class EMERGE(nn.Module):
     def __init__(
         self,
@@ -123,6 +236,8 @@ class EMERGE(nn.Module):
         modality_fusion: str = "ours",
         use_modality: str = "ehr_note_summary",
         num_heads: int = 4,
+        num_layers: int = 1,
+        ffn_multiplier: int = 4,
         dropout: float = 0.25,
     ) -> None:
         super().__init__()
@@ -130,15 +245,32 @@ class EMERGE(nn.Module):
         self.modality_fusion = modality_fusion
         self.use_modality = use_modality
 
-        self.ehr_encoder = EhrEncoder(input_ehr_dim, hidden_dim, ehr_net=ehr_net)
+        self.ehr_encoder = EhrEncoder(
+            input_ehr_dim,
+            hidden_dim,
+            ehr_net=ehr_net,
+            num_heads=num_heads,
+            num_layers=num_layers,
+            dropout=dropout,
+            ffn_multiplier=ffn_multiplier,
+        )
         self.note_proj = nn.Linear(input_note_dim, hidden_dim)
         self.summary_proj = nn.Linear(input_summary_dim, hidden_dim)
         self.text_concat_proj = nn.Linear(hidden_dim * 2, hidden_dim)
+        self.text_gate = nn.Linear(hidden_dim * 2, hidden_dim)
         self.text_alpha = nn.Parameter(torch.tensor(0.5))
         self.text_mag = MAGGate(hidden_dim, dropout=dropout)
 
         if modality_fusion == "ours":
             self.fusion = CrossAttentionFusion(hidden_dim, num_heads=num_heads, dropout=dropout)
+        elif modality_fusion == "token_transformer":
+            self.fusion = TokenTransformerFusion(
+                hidden_dim,
+                num_heads=num_heads,
+                num_layers=num_layers,
+                dropout=dropout,
+                ffn_multiplier=ffn_multiplier,
+            )
         elif modality_fusion == "mag":
             self.fusion = MAGGate(hidden_dim, dropout=dropout)
         elif modality_fusion == "concat":
@@ -166,6 +298,9 @@ class EMERGE(nn.Module):
             text_embedding = note_embedding + summary_embedding
         elif self.text_fusion == "concat":
             text_embedding = self.text_concat_proj(torch.cat([note_embedding, summary_embedding], dim=-1))
+        elif self.text_fusion == "gated":
+            gate = torch.sigmoid(self.text_gate(torch.cat([note_embedding, summary_embedding], dim=-1)))
+            text_embedding = gate * note_embedding + (1.0 - gate) * summary_embedding
         elif self.text_fusion == "adaptive":
             alpha = torch.clamp(self.text_alpha, 0.0, 1.0)
             text_embedding = alpha * note_embedding + (1.0 - alpha) * summary_embedding
@@ -174,7 +309,14 @@ class EMERGE(nn.Module):
         else:
             raise ValueError(f"Unsupported text fusion: {self.text_fusion}")
 
-        if self.modality_fusion == "ours":
+        if self.modality_fusion == "token_transformer":
+            fused = self.fusion(
+                ehr_embedding,
+                note_embedding,
+                summary_embedding,
+                self._modality_mask(x_ehr.size(0), x_ehr.device),
+            )
+        elif self.modality_fusion == "ours":
             fused = self.fusion(ehr_embedding, text_embedding)
         else:
             fused = self.fusion(ehr_embedding, text_embedding)
@@ -192,6 +334,14 @@ class EMERGE(nn.Module):
         if self.use_modality == "note_summary":
             return text_embedding
         raise ValueError(f"Unsupported modality selection: {self.use_modality}")
+
+    def _modality_mask(self, batch_size: int, device: torch.device) -> torch.Tensor:
+        active = {
+            "ehr_note_summary": (True, True, True),
+            "ehr_note": (True, True, False),
+            "ehr_summary": (True, False, True),
+        }.get(self.use_modality, (True, True, True))
+        return torch.tensor(active, device=device, dtype=torch.bool).unsqueeze(0).expand(batch_size, -1)
 
 
 class MultitaskHead(nn.Module):

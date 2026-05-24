@@ -39,8 +39,8 @@ entity_backend = "rules"
 summary_backend = "template"
 api_base_url = "https://api.deepseek.com"
 api_key_env = "DEEPSEEK_API_KEY"
-entity_model_name = "qwen-7b"
-summary_model_name = "deepseek-chat"
+entity_model_name = "deepseek-v4-flash"
+summary_model_name = "deepseek-v4-flash"
 max_entity_rounds = 1
 max_entity_tokens = 256
 max_summary_tokens = 256
@@ -61,6 +61,8 @@ text_fusion = "concat"
 modality_fusion = "ours"
 use_modality = "ehr_note_summary"
 num_heads = 4
+num_layers = 1
+ffn_multiplier = 4
 dropout = 0.25
 
 [trainer]

@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 lm = [
     "sentence-transformers>=3.0",
-    "transformers>=4.42",
+    "transformers>=4.51",
 ]
 dev = [
     "pytest>=8.2",
