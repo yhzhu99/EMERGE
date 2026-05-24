@@ -1,7 +1,10 @@
 ######################
-data/
-datasets/
-logs/
+/data/*
+!/data/.gitignore
+!/data/README.md
+/datasets/
+/logs/
+/runs/
 ######################
 
 # Byte-compiled / optimized / DLL files

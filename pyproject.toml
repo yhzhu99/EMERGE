@@ -1,22 +1,19 @@
 [project]
 name = "emerge-ehr"
 version = "0.1.0"
-description = "Engineering reproduction of EMERGE for multimodal EHR prediction with KG-RAG."
+description = "Code for EMERGE: multimodal EHR predictive modeling with retrieval-augmented generation."
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 authors = [
-    { name = "EMERGE Reproduction" }
+    { name = "EMERGE Authors" }
 ]
 dependencies = [
-    "h5py>=3.11",
-    "lightning>=2.2,<3",
     "numpy>=1.26",
     "pandas>=2.2",
-    "pyyaml>=6.0",
+    "pyarrow>=15.0",
     "requests>=2.32",
     "scikit-learn>=1.5",
     "torch>=2.2",
-    "torchmetrics>=1.4",
     "tqdm>=4.66",
 ]
 
@@ -34,11 +31,12 @@ dev = [
 package = false
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
+src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "W"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

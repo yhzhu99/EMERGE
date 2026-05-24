@@ -3,11 +3,24 @@ from __future__ import annotations
 import re
 import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
-from oneehr_schema import OneEHRDataset
+from datasets.schema import OneEHRDataset
+
+if TYPE_CHECKING:
+    from config import ExperimentConfig
+
+
+def convert_mimic4_demo(cfg: "ExperimentConfig") -> Path:
+    converter = MIMIC4OneEHRConverter(
+        cfg.data.raw_dir,
+        notes_file=cfg.data.notes_file,
+    )
+    converter.save(cfg.data.table_dir)
+    return cfg.data.table_dir
 
 
 class MIMIC4OneEHRConverter:
