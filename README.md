@@ -1,6 +1,6 @@
 # EMERGE
 
-Official implementation of the paper [EMERGE: Enhancing Multimodal Electronic Health Records Predictive Modeling with Retrieval-Augmented Generation](https://doi.org/10.1145/3627673.3679582), accepted by **CIKM 2024**.
+Official implementation of the paper [**EMERGE: Enhancing Multimodal Electronic Health Records Predictive Modeling with Retrieval-Augmented Generation**](https://dl.acm.org/doi/10.1145/3627673.3679582), accepted by **CIKM 2024**.
 
 EMERGE enhances multimodal EHR prediction by extracting abnormal time-series signals and disease entities from clinical text, retrieving disease knowledge from PrimeKG, generating patient-level RAG summaries, and fusing time-series, clinical-note, and RAG-summary representations with cross-attention.
 
