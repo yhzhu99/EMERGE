@@ -141,6 +141,12 @@ python src/main.py --stage preprocess --config configs/mimic4_demo_lm.toml
 This config uses `BAAI/bge-m3` for PrimeKG/entity matching and `yikuan8/Clinical-Longformer`
 for frozen CLS note and RAG-summary embeddings.
 
+LLM entity extraction and summary generation are controlled by the `[llm]` section. The default
+uses local rules and template summaries for reproducible demo runs. Set `entity_backend` or
+`summary_backend` to `openai_compatible`, point `api_base_url` to a Qwen/vLLM/DeepSeek-compatible
+chat-completions endpoint, and set the environment variable named by `api_key_env` to enable
+prompted entity extraction or RAG summary generation.
+
 For full benchmark experiments, prepare the same three OneEHR files under a new `data/tables/<dataset>/<task>/` directory and point `table_dir`, `processed_dir`, and `kg_dir` in a TOML config to the corresponding paths.
 
 ## Benchmark Notes

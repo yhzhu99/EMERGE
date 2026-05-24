@@ -45,6 +45,22 @@ class TextConfig:
 
 
 @dataclass(frozen=True)
+class LLMConfig:
+    entity_backend: str = "rules"
+    summary_backend: str = "template"
+    api_base_url: str = "https://api.deepseek.com"
+    api_key_env: str = "DEEPSEEK_API_KEY"
+    entity_model_name: str = "qwen-7b"
+    summary_model_name: str = "deepseek-chat"
+    max_entity_rounds: int = 1
+    max_entity_tokens: int = 256
+    max_summary_tokens: int = 256
+    temperature: float = 0.0
+    timeout_seconds: int = 60
+    fallback_to_local: bool = True
+
+
+@dataclass(frozen=True)
 class SplitConfig:
     train_size: float = 0.7
     val_size: float = 0.1
@@ -85,6 +101,7 @@ class ExperimentConfig:
     data: DataConfig = field(default_factory=DataConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
     text: TextConfig = field(default_factory=TextConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
     split: SplitConfig = field(default_factory=SplitConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
@@ -97,6 +114,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
     data_default = DataConfig()
     rag_default = RAGConfig()
     text_default = TextConfig()
+    llm_default = LLMConfig()
     split_default = SplitConfig()
     model_default = ModelConfig()
     trainer_default = TrainerConfig()
@@ -105,6 +123,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
     data_raw = raw.get("data", {})
     rag_raw = raw.get("rag", {})
     text_raw = raw.get("text", {})
+    llm_raw = raw.get("llm", {})
     split_raw = raw.get("split", {})
     model_raw = raw.get("model", {})
     trainer_raw = raw.get("trainer", {})
@@ -157,6 +176,20 @@ def load_config(path: str | Path) -> ExperimentConfig:
         device=str(text_raw.get("device", text_default.device)),
         max_length=int(text_raw.get("max_length", text_default.max_length)),
     )
+    llm = LLMConfig(
+        entity_backend=str(llm_raw.get("entity_backend", llm_default.entity_backend)),
+        summary_backend=str(llm_raw.get("summary_backend", llm_default.summary_backend)),
+        api_base_url=str(llm_raw.get("api_base_url", llm_default.api_base_url)),
+        api_key_env=str(llm_raw.get("api_key_env", llm_default.api_key_env)),
+        entity_model_name=str(llm_raw.get("entity_model_name", llm_default.entity_model_name)),
+        summary_model_name=str(llm_raw.get("summary_model_name", llm_default.summary_model_name)),
+        max_entity_rounds=int(llm_raw.get("max_entity_rounds", llm_default.max_entity_rounds)),
+        max_entity_tokens=int(llm_raw.get("max_entity_tokens", llm_default.max_entity_tokens)),
+        max_summary_tokens=int(llm_raw.get("max_summary_tokens", llm_default.max_summary_tokens)),
+        temperature=float(llm_raw.get("temperature", llm_default.temperature)),
+        timeout_seconds=int(llm_raw.get("timeout_seconds", llm_default.timeout_seconds)),
+        fallback_to_local=bool(llm_raw.get("fallback_to_local", llm_default.fallback_to_local)),
+    )
     split = SplitConfig(
         train_size=float(split_raw.get("train_size", split_default.train_size)),
         val_size=float(split_raw.get("val_size", split_default.val_size)),
@@ -190,6 +223,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
         data=data,
         rag=rag,
         text=text,
+        llm=llm,
         split=split,
         model=model,
         trainer=trainer,

@@ -12,6 +12,8 @@ def test_load_mimic4_demo_config() -> None:
     assert cfg.rag.require_kg_triples is True
     assert cfg.rag.retriever_backend == "tfidf"
     assert cfg.text.embedding_backend == "tfidf_svd"
+    assert cfg.llm.entity_backend == "rules"
+    assert cfg.llm.summary_backend == "template"
     assert cfg.trainer.seeds == (42,)
 
 

@@ -9,13 +9,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from config import ExperimentConfig
-from datasets.rag import (
-    KnowledgeRetriever,
-    build_patient_summary,
-    clean_entity,
-    extract_note_entities,
-    retrieval_records_to_json,
-)
+from datasets.llm import extract_note_entities_with_llm, summarize_patient_with_llm
+from datasets.rag import KnowledgeRetriever, clean_entity, retrieval_records_to_json
 from datasets.schema import load_oneehr_tables
 from datasets.text_embedding import build_text_encoder
 
@@ -65,8 +60,10 @@ def preprocess_emerge_dataset(cfg: ExperimentConfig) -> Path:
     note_entities_by_patient: dict[str, list[str]] = {}
     patient_entities: dict[str, list[str]] = {}
     for pid in patient_ids:
-        note_entities = extract_note_entities(
-            note_text_by_patient.get(pid, ""), max_entities=cfg.rag.max_note_entities
+        note_entities = extract_note_entities_with_llm(
+            note_text_by_patient.get(pid, ""),
+            cfg.llm,
+            max_entities=cfg.rag.max_note_entities,
         )
         note_entities_by_patient[pid] = note_entities
         patient_entities[pid] = _deduplicate(
@@ -92,10 +89,11 @@ def preprocess_emerge_dataset(cfg: ExperimentConfig) -> Path:
             top_k=cfg.rag.max_kg_nodes,
             triples_per_node=cfg.rag.max_triples_per_node,
         )
-        summaries[pid] = build_patient_summary(
+        summaries[pid] = summarize_patient_with_llm(
             abnormal_by_patient.get(pid, []),
             note_entities_by_patient.get(pid, []),
             retrieved,
+            cfg.llm,
         )
         retrieval_json[pid] = retrieval_records_to_json(retrieved)
 

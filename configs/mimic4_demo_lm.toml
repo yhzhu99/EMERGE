@@ -31,6 +31,20 @@ batch_size = 2
 device = "auto"
 max_length = 4096
 
+[llm]
+entity_backend = "rules"
+summary_backend = "template"
+api_base_url = "https://api.deepseek.com"
+api_key_env = "DEEPSEEK_API_KEY"
+entity_model_name = "qwen-7b"
+summary_model_name = "deepseek-chat"
+max_entity_rounds = 1
+max_entity_tokens = 256
+max_summary_tokens = 256
+temperature = 0.0
+timeout_seconds = 60
+fallback_to_local = true
+
 [split]
 train_size = 0.7
 val_size = 0.1
